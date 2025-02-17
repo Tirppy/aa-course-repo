@@ -1,5 +1,10 @@
 import time
 import matplotlib.pyplot as plt
+from decimal import Decimal, getcontext
+import math
+import sys
+
+sys.setrecursionlimit(1000000)
 
 def fibonacci_recursive(n):
     if n <= 1:
@@ -45,9 +50,10 @@ def matrix_exponentiation(n):
     return result[0][0]
 
 def binet_formula(n):
-    phi = (1 + 5 ** 0.5) / 2
-    psi = (1 - 5 ** 0.5) / 2
-    return int((phi ** n - psi ** n) / (5 ** 0.5))
+    getcontext().prec = 60  
+    phi = Decimal(1 + math.sqrt(5)) / 2
+    psi = Decimal(1 - math.sqrt(5)) / 2
+    return int((phi ** n - psi ** n) / Decimal(math.sqrt(5)))
 
 def fibonacci_fast_doubling(n):
     def fib(n):
@@ -62,38 +68,42 @@ def fibonacci_fast_doubling(n):
             return (d, c + d)
     return fib(n)[0]
 
-def measure_time_and_plot(fib_function, max_n, label):
+def measure_time_and_plot(fib_function, max_n, label, ax):
     times = []
     fibonacci_values = []
     nodes = 10
     step = max_n // nodes
     
     for n in range(1, max_n + 1, step):
-        start_time = time.time()
+        start_time = time.time()  
         fib_value = fib_function(n)
-        end_time = time.time()
+        end_time = time.time()  
         times.append(end_time - start_time)
         fibonacci_values.append(fib_value)
         
-    plt.figure(figsize=(10, 6))
-    plt.plot(range(1, max_n + 1, step), times, marker='o', label=label)
-    plt.xlabel('Fibonacci Term (n)')
-    plt.ylabel('Time (seconds)')
-    plt.title(f'Time vs Fibonacci Term ({label}) for n = 1 to {max_n}')
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+    ax.plot(range(1, max_n + 1, step), times, marker='o', label=label)
+    ax.set_xlabel('Fibonacci Term (n)')
+    ax.set_ylabel('Time (seconds)')
+    ax.set_title('Time vs Fibonacci Term')
+    ax.grid(True)
+    ax.legend()
 
-recursive_n = 30
-memoization_n = 1000
-bottom_up_n = 1000
-matrix_exponentiation_n = 1000
-binet_formula_n = 1000
-fast_doubling_n = 1000
+recursive_n = 35
+memoization_n = 460000
+bottom_up_n = 190000
+matrix_exponentiation_n = 1000000
+binet_formula_n = 1000000
+fast_doubling_n = 1000000
 
-measure_time_and_plot(fibonacci_recursive, recursive_n, "Recursive Method")
-measure_time_and_plot(fibonacci_memoization, memoization_n, "Memoization Method")
-measure_time_and_plot(fibonacci_bottom_up, bottom_up_n, "Bottom-Up Method")
-measure_time_and_plot(matrix_exponentiation, matrix_exponentiation_n, "Matrix Exponentiation Method")
-measure_time_and_plot(binet_formula, binet_formula_n, "Binet's Formula Method")
-measure_time_and_plot(fibonacci_fast_doubling, fast_doubling_n, "Fast Doubling Method")
+fig, ax = plt.subplots(figsize=(12, 8))
+
+measure_time_and_plot(fibonacci_recursive, recursive_n, "Recursive Method", ax)
+measure_time_and_plot(fibonacci_memoization, memoization_n, "Memoization Method", ax)
+measure_time_and_plot(fibonacci_bottom_up, bottom_up_n, "Bottom-Up Method", ax)
+measure_time_and_plot(matrix_exponentiation, matrix_exponentiation_n, "Matrix Exponentiation Method", ax)
+measure_time_and_plot(binet_formula, binet_formula_n, "Binet's Formula Method", ax)
+measure_time_and_plot(fibonacci_fast_doubling, fast_doubling_n, "Fast Doubling Method", ax)
+
+plt.title('Comparison of Fibonacci Methods')
+plt.grid(True)
+plt.show()
