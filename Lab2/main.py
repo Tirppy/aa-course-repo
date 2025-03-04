@@ -8,14 +8,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 root = tk.Tk()
 root.title("Sorting Visualizer & Performance Plotter")
 
-# Global variables
-numbers = []          # The array to be sorted.
-sort_generator = None # Generator for animation.
-plot_canvas = None    # Matplotlib canvas widget in the bottom plot frame.
-data_points = []      # Accumulates tuples of (array_length, sort_time, color).
-current_algo = None   # Tracks which sorting algorithm is currently used.
+numbers = []
+sort_generator = None
+plot_canvas = None
+data_points = []
+current_algo = None
 
-# Define unique colors for each sorting algorithm.
 algo_colors = {
     "merge": "red",
     "heap": "blue",
@@ -23,18 +21,12 @@ algo_colors = {
     "insertion": "purple"
 }
 
-# Tkinter BooleanVars for checkboxes.
-float_var = tk.BooleanVar(value=False)       # If True, generate floats (2 decimals).
-visualizer_var = tk.BooleanVar(value=True)     # If True, animate sort; if False, plot performance.
+float_var = tk.BooleanVar(value=False)
+visualizer_var = tk.BooleanVar(value=True)
 
 # ---------------- Utility Functions ----------------
 
 def get_array_from_entry():
-    """
-    Reads the array from the editable text box.
-    Tries to safely evaluate the text as a Python list,
-    or splits by commas if needed.
-    """
     text = entry_array.get().strip()
     try:
         arr = ast.literal_eval(text)
@@ -49,13 +41,6 @@ def get_array_from_entry():
             return None
 
 def generate_array():
-    """
-    Generates an array using the length from the length entry.
-    Also reads the min and max values from the corresponding boxes.
-    If "Generate Floats" is on, the array contains floats (2 decimals);
-    otherwise, it contains integers.
-    The generated array is placed in the editable array box.
-    """
     try:
         length = int(entry_length.get())
     except ValueError:
@@ -86,11 +71,6 @@ def generate_array():
     entry_array.insert(0, str(arr))
 
 def draw_array(array, color_positions={}):
-    """
-    Draws the array on the visualizer canvas as vertical bars.
-    The bars are scaled using the 'Min' and 'Max' entry values so that negative
-    values are handled correctly.
-    """
     canvas.delete("all")
     if not array:
         return
@@ -109,7 +89,6 @@ def draw_array(array, color_positions={}):
     bar_width = canvas_width / len(array)
     for i, value in enumerate(array):
         x0 = i * bar_width
-        # Map value from [lower_bound, upper_bound] to [0, canvas_height]
         normalized = (value - lower_bound) / (upper_bound - lower_bound)
         y0 = canvas_height - (normalized * canvas_height)
         x1 = (i + 1) * bar_width
@@ -119,27 +98,19 @@ def draw_array(array, color_positions={}):
     canvas.update()
 
 def plot_graph():
-    """
-    Creates and updates a matplotlib plot in the bottom frame.
-    X axis: Array Length, Y axis: Sort Time (s). Data points are grouped by algorithm
-    and connected with lines. The legend displays the sort algorithm name.
-    """
     global plot_canvas
     if plot_canvas is not None:
         plot_canvas.get_tk_widget().destroy()
         plot_canvas = None
 
-    # Group data points by color.
     groups = {}
     for x, y, col in data_points:
         groups.setdefault(col, []).append((x, y))
     
-    # Invert the algo_colors dictionary to get algorithm names from colors.
     color_to_algo = {v: k.capitalize() for k, v in algo_colors.items()}
     
     fig, ax = plt.subplots(figsize=(8, 4))
     for col, points in groups.items():
-        # Sort points by array length.
         points.sort(key=lambda pt: pt[0])
         xs = [pt[0] for pt in points]
         ys = [pt[1] for pt in points]
@@ -155,16 +126,11 @@ def plot_graph():
     widget.pack(fill=tk.BOTH, expand=True)
 
 def reset_plot():
-    """Clears the accumulated performance data and resets the plot."""
     global data_points
     data_points = []
     plot_graph()
 
 def animate():
-    """
-    Animates the sorting process using the current sort_generator.
-    Highlights swapped indices using the current algorithm’s color.
-    """
     global sort_generator
     try:
         array_state, idx1, idx2 = next(sort_generator)
@@ -182,7 +148,6 @@ def animate():
 # ---------------- Sorting Generators ----------------
 
 def merge_sort_generator():
-    """Iterative merge sort generator that yields the array state after each merge."""
     global numbers
     n = len(numbers)
     curr_size = 1
@@ -212,7 +177,6 @@ def merge_sort_generator():
     yield numbers, None, None
 
 def heap_sort_generator():
-    """Heap sort generator that yields the array state at each swap."""
     global numbers
     n = len(numbers)
     def heapify(i, heap_size):
@@ -236,7 +200,6 @@ def heap_sort_generator():
     yield numbers, None, None
 
 def quick_sort_generator():
-    """Iterative quick sort generator that yields the array state at each swap."""
     global numbers
     stack = [(0, len(numbers) - 1)]
     while stack:
@@ -256,7 +219,6 @@ def quick_sort_generator():
     yield numbers, None, None
 
 def insertion_sort_generator():
-    """Insertion sort generator that yields the array state after each insertion."""
     global numbers
     n = len(numbers)
     for i in range(1, n):
@@ -273,13 +235,6 @@ def insertion_sort_generator():
 # ---------------- Performance Points Generation ----------------
 
 def generate_multiple_performance_points():
-    """
-    Reads the array from the editable array box (which should contain a list of numbers).
-    For each number n in that list, it generates a random array of length n,
-    times the sort using the currently selected algorithm,
-    and appends a point (x = n, y = sort time) to the performance data.
-    Then updates the plot.
-    """
     global data_points, current_algo, numbers
     arr = get_array_from_entry()
     if arr is None:
@@ -316,10 +271,6 @@ def generate_multiple_performance_points():
 # ---------------- Unified Sorting Function ----------------
 
 def sort_algorithm(sort_gen_func):
-    """
-    Reads the array from the editable box, then either animates the sort (if visualizer is on)
-    or—in non-visualizer mode—calls the multiple-points routine.
-    """
     global numbers, sort_generator
     arr = get_array_from_entry()
     if arr is None:
@@ -338,21 +289,6 @@ def sort_algorithm(sort_gen_func):
 # ---------------- Analyze Array Function ----------------
 
 def analyze_array():
-    """
-    Analyzes the array (from the editable box) and selects the most efficient
-    sorting algorithm based on several criteria:
-    
-    1. Size of the Dataset:
-       - Small datasets (fewer than 10–20 elements): Insertion sort is efficient.
-    
-    2. Existing Order (Presortedness):
-       - Nearly sorted data (≥90% adjacent pairs in order): Insertion sort works exceptionally well.
-       - Moderately sorted data (70%-90%): Quick sort is appropriate.
-       - Random or reverse-ordered data (40%-70%): Merge sort is chosen for its consistency.
-       - Largely unsorted data (<40%): Heap sort is selected for predictable performance.
-    
-    The chosen algorithm and condition are displayed, and that algorithm is used to sort the array.
-    """
     global current_algo
     arr = get_array_from_entry()
     if arr is None or len(arr) < 2:
@@ -416,7 +352,6 @@ def sort_insertion():
 
 # ---------------- Layout Setup ----------------
 
-# Top frame holds two subframes: left for controls, right for visualizer canvas.
 frame_top = tk.Frame(root)
 frame_top.pack(side=tk.TOP, padx=10, pady=10)
 
@@ -426,49 +361,39 @@ frame_left.pack(side=tk.LEFT, padx=10, pady=10)
 frame_right = tk.Frame(frame_top)
 frame_right.pack(side=tk.RIGHT, padx=10, pady=10)
 
-# Editable array text box.
 entry_array = tk.Entry(frame_left, width=50)
 entry_array.pack(padx=5, pady=5)
 
-# Frame to hold the length, min, and max entries.
 frame_entries = tk.Frame(frame_left)
 frame_entries.pack(padx=5, pady=5)
 
-# Entry for desired array length.
 label_length = tk.Label(frame_entries, text="Length:")
 label_length.grid(row=0, column=0, padx=5)
 entry_length = tk.Entry(frame_entries, width=10)
 entry_length.grid(row=0, column=1, padx=5)
 
-# Entry for min number.
 label_min = tk.Label(frame_entries, text="Min:")
 label_min.grid(row=0, column=2, padx=5)
 entry_min = tk.Entry(frame_entries, width=10)
 entry_min.grid(row=0, column=3, padx=5)
 
-# Entry for max number.
 label_max = tk.Label(frame_entries, text="Max:")
 label_max.grid(row=0, column=4, padx=5)
 entry_max = tk.Entry(frame_entries, width=10)
 entry_max.grid(row=0, column=5, padx=5)
 
-# Frame for buttons under the entries.
 frame_buttons = tk.Frame(frame_left)
 frame_buttons.pack(padx=5, pady=5)
 
-# Button to generate the array.
 generate_button = tk.Button(frame_buttons, text="Generate Array", command=generate_array)
 generate_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-# New "Analyze Array" button to the right of "Generate Array".
 analyze_button = tk.Button(frame_buttons, text="Analyze Array", command=analyze_array)
 analyze_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-# Label to show which algorithm was chosen by analyze_array.
 label_analysis_result = tk.Label(frame_left, text="Chosen Algorithm: None")
 label_analysis_result.pack(padx=5, pady=5)
 
-# 2x2 grid for sort buttons.
 sort_button_frame = tk.Frame(frame_left)
 sort_button_frame.pack(padx=5, pady=5)
 
@@ -484,22 +409,18 @@ quick_button.grid(row=1, column=0, padx=5, pady=5)
 insertion_button = tk.Button(sort_button_frame, text="Insertion Sort", command=sort_insertion)
 insertion_button.grid(row=1, column=1, padx=5, pady=5)
 
-# Checkboxes.
 float_checkbox = tk.Checkbutton(frame_left, text="Generate Floats (2 decimals)", variable=float_var)
 float_checkbox.pack(padx=5, pady=5)
 
 visualizer_checkbox = tk.Checkbutton(frame_left, text="Enable Visualizer", variable=visualizer_var)
 visualizer_checkbox.pack(padx=5, pady=5)
 
-# Button to reset the performance plot.
 reset_plot_button = tk.Button(frame_left, text="Reset Plot", command=reset_plot)
 reset_plot_button.pack(padx=5, pady=5)
 
-# Visualizer canvas in the right frame.
 canvas = tk.Canvas(frame_right, width=300, height=200, bg="white")
 canvas.pack()
 
-# Bottom frame for the performance plot.
 frame_plot = tk.Frame(root)
 frame_plot.pack(side=tk.BOTTOM, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
