@@ -88,7 +88,8 @@ def generate_array():
 def draw_array(array, color_positions={}):
     """
     Draws the array on the visualizer canvas as vertical bars.
-    The maximum bar height is scaled using the "Max" entry value.
+    The bars are scaled using the 'Min' and 'Max' entry values so that negative
+    values are handled correctly.
     """
     canvas.delete("all")
     if not array:
@@ -96,16 +97,21 @@ def draw_array(array, color_positions={}):
     canvas_width = 300
     canvas_height = 200
     try:
-        max_val = int(entry_max.get())
+        lower_bound = float(entry_min.get())
     except:
-        max_val = 100
-    if max_val <= 0:
-        max_val = 100
+        lower_bound = 0
+    try:
+        upper_bound = float(entry_max.get())
+    except:
+        upper_bound = 100
+    if upper_bound == lower_bound:
+        upper_bound = lower_bound + 1
     bar_width = canvas_width / len(array)
     for i, value in enumerate(array):
         x0 = i * bar_width
-        # Use the entered max_val to scale the bar height.
-        y0 = canvas_height - (value / max_val) * canvas_height
+        # Map value from [lower_bound, upper_bound] to [0, canvas_height]
+        normalized = (value - lower_bound) / (upper_bound - lower_bound)
+        y0 = canvas_height - (normalized * canvas_height)
         x1 = (i + 1) * bar_width
         y1 = canvas_height
         color = color_positions.get(i, "grey")
@@ -115,19 +121,34 @@ def draw_array(array, color_positions={}):
 def plot_graph():
     """
     Creates and updates a matplotlib plot in the bottom frame.
-    X axis: Array Length, Y axis: Sort Time (s). Points are colored by algorithm.
+    X axis: Array Length, Y axis: Sort Time (s). Data points are grouped by algorithm
+    and connected with lines. The legend displays the sort algorithm name.
     """
     global plot_canvas
     if plot_canvas is not None:
         plot_canvas.get_tk_widget().destroy()
         plot_canvas = None
 
+    # Group data points by color.
+    groups = {}
+    for x, y, col in data_points:
+        groups.setdefault(col, []).append((x, y))
+    
+    # Invert the algo_colors dictionary to get algorithm names from colors.
+    color_to_algo = {v: k.capitalize() for k, v in algo_colors.items()}
+    
     fig, ax = plt.subplots(figsize=(8, 4))
-    for (x, y, col) in data_points:
-        ax.scatter(x, y, color=col)
+    for col, points in groups.items():
+        # Sort points by array length.
+        points.sort(key=lambda pt: pt[0])
+        xs = [pt[0] for pt in points]
+        ys = [pt[1] for pt in points]
+        algo_name = color_to_algo.get(col, "Unknown")
+        ax.plot(xs, ys, marker='o', color=col, label=algo_name)
     ax.set_xlabel("Array Length")
     ax.set_ylabel("Sort Time (s)")
     ax.set_title("Sorting Performance")
+    ax.legend()
     plot_canvas = FigureCanvasTkAgg(fig, master=frame_plot)
     plot_canvas.draw()
     widget = plot_canvas.get_tk_widget()
@@ -319,11 +340,18 @@ def sort_algorithm(sort_gen_func):
 def analyze_array():
     """
     Analyzes the array (from the editable box) and selects the most efficient
-    sorting algorithm based on a simple heuristic:
-      - If at least 90% of adjacent pairs are in order or the array is small (<20),
-        choose Insertion Sort.
-      - Otherwise, choose Quick Sort.
-    Then, sorts the array using that algorithm and displays which algorithm was used.
+    sorting algorithm based on several criteria:
+    
+    1. Size of the Dataset:
+       - Small datasets (fewer than 10–20 elements): Insertion sort is efficient.
+    
+    2. Existing Order (Presortedness):
+       - Nearly sorted data (≥90% adjacent pairs in order): Insertion sort works exceptionally well.
+       - Moderately sorted data (70%-90%): Quick sort is appropriate.
+       - Random or reverse-ordered data (40%-70%): Merge sort is chosen for its consistency.
+       - Largely unsorted data (<40%): Heap sort is selected for predictable performance.
+    
+    The chosen algorithm and condition are displayed, and that algorithm is used to sort the array.
     """
     global current_algo
     arr = get_array_from_entry()
@@ -331,19 +359,37 @@ def analyze_array():
         entry_array.delete(0, tk.END)
         entry_array.insert(0, "Invalid or too short array!")
         return
-    count = sum(1 for i in range(len(arr) - 1) if arr[i] <= arr[i+1])
-    ratio = count / (len(arr) - 1)
-    if ratio >= 0.9 or len(arr) < 20:
+
+    n = len(arr)
+    count = sum(1 for i in range(n - 1) if arr[i] <= arr[i + 1])
+    ratio = count / (n - 1)  # Ratio of sorted adjacent pairs
+
+    if n < 20:
         chosen = "insertion"
-    else:
+        condition = "Small dataset (<20 elements)"
+    elif ratio >= 0.9:
+        chosen = "insertion"
+        condition = "Nearly sorted (≥90% sorted)"
+    elif ratio >= 0.7:
         chosen = "quick"
+        condition = "Moderately sorted (70%-90% sorted)"
+    elif ratio >= 0.4:
+        chosen = "merge"
+        condition = "Random/reverse-ordered (40%-70% sorted)"
+    else:
+        chosen = "heap"
+        condition = "Largely unsorted (<40% sorted)"
+    
     current_algo = chosen
-    label_analysis_result.config(text=f"Chosen Algorithm: {chosen.capitalize()}")
-    # Use the chosen algorithm.
+    label_analysis_result.config(text=f"Chosen Algorithm: {chosen.capitalize()} ({condition})")
+    
     algo_func = {
         "insertion": insertion_sort_generator,
-        "quick": quick_sort_generator
+        "merge": merge_sort_generator,
+        "quick": quick_sort_generator,
+        "heap": heap_sort_generator
     }.get(chosen, quick_sort_generator)
+    
     sort_algorithm(algo_func)
 
 # ---------------- Button Command Wrappers ----------------
