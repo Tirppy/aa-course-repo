@@ -20,17 +20,19 @@ algo_colors = {
     "merge": "red",
     "heap": "blue",
     "quick": "orange",
-    "timsort": "purple"
+    "insertion": "purple"
 }
 
 # Tkinter BooleanVars for checkboxes.
 float_var = tk.BooleanVar(value=False)       # If True, generate floats (2 decimals).
 visualizer_var = tk.BooleanVar(value=True)     # If True, animate sort; if False, plot performance.
 
+# ---------------- Utility Functions ----------------
+
 def get_array_from_entry():
     """
     Reads the array from the editable text box.
-    It tries to safely evaluate the text as a Python list,
+    Tries to safely evaluate the text as a Python list,
     or splits by commas if needed.
     """
     text = entry_array.get().strip()
@@ -48,9 +50,9 @@ def get_array_from_entry():
 
 def generate_array():
     """
-    Generates an array using the length from the second entry.
-    Also reads the min and max values from the new boxes.
-    If the "Generate Floats" checkbox is on, the array contains floats (2 decimals);
+    Generates an array using the length from the length entry.
+    Also reads the min and max values from the corresponding boxes.
+    If "Generate Floats" is on, the array contains floats (2 decimals);
     otherwise, it contains integers.
     The generated array is placed in the editable array box.
     """
@@ -86,18 +88,24 @@ def generate_array():
 def draw_array(array, color_positions={}):
     """
     Draws the array on the visualizer canvas as vertical bars.
-    color_positions is a dict mapping indices to colors.
+    The maximum bar height is scaled using the "Max" entry value.
     """
     canvas.delete("all")
     if not array:
         return
     canvas_width = 300
     canvas_height = 200
+    try:
+        max_val = int(entry_max.get())
+    except:
+        max_val = 100
+    if max_val <= 0:
+        max_val = 100
     bar_width = canvas_width / len(array)
     for i, value in enumerate(array):
         x0 = i * bar_width
-        # Scale value to canvas height (assuming values range between 1 and 100).
-        y0 = canvas_height - (value / 100) * canvas_height
+        # Use the entered max_val to scale the bar height.
+        y0 = canvas_height - (value / max_val) * canvas_height
         x1 = (i + 1) * bar_width
         y1 = canvas_height
         color = color_positions.get(i, "grey")
@@ -150,7 +158,7 @@ def animate():
         entry_array.insert(0, str(numbers))
         draw_array(numbers)
 
-# ----------------- Sorting Generators -----------------
+# ---------------- Sorting Generators ----------------
 
 def merge_sort_generator():
     """Iterative merge sort generator that yields the array state after each merge."""
@@ -226,13 +234,22 @@ def quick_sort_generator():
             stack.append((i + 1, high))
     yield numbers, None, None
 
-def timsort_generator():
-    """Simulated Timsort using Python’s built-in sort."""
+def insertion_sort_generator():
+    """Insertion sort generator that yields the array state after each insertion."""
     global numbers
-    numbers.sort()
+    n = len(numbers)
+    for i in range(1, n):
+        key = numbers[i]
+        j = i - 1
+        while j >= 0 and numbers[j] > key:
+            numbers[j + 1] = numbers[j]
+            yield numbers, j, j+1
+            j -= 1
+        numbers[j + 1] = key
+        yield numbers, j+1, i
     yield numbers, None, None
 
-# ----------------- Performance Points Generation -----------------
+# ---------------- Performance Points Generation ----------------
 
 def generate_multiple_performance_points():
     """
@@ -248,15 +265,14 @@ def generate_multiple_performance_points():
         entry_array.delete(0, tk.END)
         entry_array.insert(0, "Invalid array input!")
         return
-    # Ensure current_algo is set; default to timsort.
     if current_algo is None:
-        current_algo = "timsort"
+        current_algo = "insertion"
     algo_func = {
         "merge": merge_sort_generator,
         "heap": heap_sort_generator,
         "quick": quick_sort_generator,
-        "timsort": timsort_generator
-    }.get(current_algo, timsort_generator)
+        "insertion": insertion_sort_generator
+    }.get(current_algo, insertion_sort_generator)
     
     for n in arr:
         try:
@@ -276,7 +292,7 @@ def generate_multiple_performance_points():
         data_points.append((n_int, sort_time, algo_colors.get(current_algo, "black")))
     plot_graph()
 
-# ----------------- Unified Sorting Function -----------------
+# ---------------- Unified Sorting Function ----------------
 
 def sort_algorithm(sort_gen_func):
     """
@@ -298,7 +314,39 @@ def sort_algorithm(sort_gen_func):
     else:
         generate_multiple_performance_points()
 
-# ----------------- Button Command Wrappers -----------------
+# ---------------- Analyze Array Function ----------------
+
+def analyze_array():
+    """
+    Analyzes the array (from the editable box) and selects the most efficient
+    sorting algorithm based on a simple heuristic:
+      - If at least 90% of adjacent pairs are in order or the array is small (<20),
+        choose Insertion Sort.
+      - Otherwise, choose Quick Sort.
+    Then, sorts the array using that algorithm and displays which algorithm was used.
+    """
+    global current_algo
+    arr = get_array_from_entry()
+    if arr is None or len(arr) < 2:
+        entry_array.delete(0, tk.END)
+        entry_array.insert(0, "Invalid or too short array!")
+        return
+    count = sum(1 for i in range(len(arr) - 1) if arr[i] <= arr[i+1])
+    ratio = count / (len(arr) - 1)
+    if ratio >= 0.9 or len(arr) < 20:
+        chosen = "insertion"
+    else:
+        chosen = "quick"
+    current_algo = chosen
+    label_analysis_result.config(text=f"Chosen Algorithm: {chosen.capitalize()}")
+    # Use the chosen algorithm.
+    algo_func = {
+        "insertion": insertion_sort_generator,
+        "quick": quick_sort_generator
+    }.get(chosen, quick_sort_generator)
+    sort_algorithm(algo_func)
+
+# ---------------- Button Command Wrappers ----------------
 
 def sort_merge():
     global current_algo
@@ -315,12 +363,12 @@ def sort_quick():
     current_algo = "quick"
     sort_algorithm(quick_sort_generator)
 
-def sort_timsort():
+def sort_insertion():
     global current_algo
-    current_algo = "timsort"
-    sort_algorithm(timsort_generator)
+    current_algo = "insertion"
+    sort_algorithm(insertion_sort_generator)
 
-# ----------------- Layout Setup -----------------
+# ---------------- Layout Setup ----------------
 
 # Top frame holds two subframes: left for controls, right for visualizer canvas.
 frame_top = tk.Frame(root)
@@ -358,9 +406,21 @@ label_max.grid(row=0, column=4, padx=5)
 entry_max = tk.Entry(frame_entries, width=10)
 entry_max.grid(row=0, column=5, padx=5)
 
+# Frame for buttons under the entries.
+frame_buttons = tk.Frame(frame_left)
+frame_buttons.pack(padx=5, pady=5)
+
 # Button to generate the array.
-generate_button = tk.Button(frame_left, text="Generate Array", command=generate_array)
-generate_button.pack(padx=5, pady=5)
+generate_button = tk.Button(frame_buttons, text="Generate Array", command=generate_array)
+generate_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+# New "Analyze Array" button to the right of "Generate Array".
+analyze_button = tk.Button(frame_buttons, text="Analyze Array", command=analyze_array)
+analyze_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+# Label to show which algorithm was chosen by analyze_array.
+label_analysis_result = tk.Label(frame_left, text="Chosen Algorithm: None")
+label_analysis_result.pack(padx=5, pady=5)
 
 # 2x2 grid for sort buttons.
 sort_button_frame = tk.Frame(frame_left)
@@ -375,8 +435,8 @@ heap_button.grid(row=0, column=1, padx=5, pady=5)
 quick_button = tk.Button(sort_button_frame, text="Quick Sort", command=sort_quick)
 quick_button.grid(row=1, column=0, padx=5, pady=5)
 
-timsort_button = tk.Button(sort_button_frame, text="Timsort", command=sort_timsort)
-timsort_button.grid(row=1, column=1, padx=5, pady=5)
+insertion_button = tk.Button(sort_button_frame, text="Insertion Sort", command=sort_insertion)
+insertion_button.grid(row=1, column=1, padx=5, pady=5)
 
 # Checkboxes.
 float_checkbox = tk.Checkbutton(frame_left, text="Generate Floats (2 decimals)", variable=float_var)
