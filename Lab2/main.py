@@ -289,44 +289,92 @@ def sort_algorithm(sort_gen_func):
 # ---------------- Analyze Array Function ----------------
 
 def analyze_array():
-    global current_algo
+    global current_algo, data_points
+    
     arr = get_array_from_entry()
-    if arr is None or len(arr) < 2:
+    if arr is None:
         entry_array.delete(0, tk.END)
-        entry_array.insert(0, "Invalid or too short array!")
+        entry_array.insert(0, "Invalid array input!")
         return
-
-    n = len(arr)
-    count = sum(1 for i in range(n - 1) if arr[i] <= arr[i + 1])
-    ratio = count / (n - 1)  # Ratio of sorted adjacent pairs
-
-    if n < 20:
-        chosen = "insertion"
-        condition = "Small dataset (<20 elements)"
-    elif ratio >= 0.9:
-        chosen = "insertion"
-        condition = "Nearly sorted (≥90% sorted)"
-    elif ratio >= 0.7:
-        chosen = "quick"
-        condition = "Moderately sorted (70%-90% sorted)"
-    elif ratio >= 0.4:
-        chosen = "merge"
-        condition = "Random/reverse-ordered (40%-70% sorted)"
-    else:
-        chosen = "heap"
-        condition = "Largely unsorted (<40% sorted)"
     
-    current_algo = chosen
-    label_analysis_result.config(text=f"Chosen Algorithm: {chosen.capitalize()} ({condition})")
+    if visualizer_var.get():
+        # If visualizer is enabled, run sorting with visualization
+        chosen_algo = "quick"  # Default algorithm if analysis is skipped
+        
+        sortedness_ratio = sum(arr[i] <= arr[i + 1] for i in range(len(arr) - 1)) / (len(arr) - 1)
+        
+        if len(arr) < 20:
+            chosen_algo = "insertion"
+        elif sortedness_ratio >= 0.9:
+            chosen_algo = "insertion"
+        elif sortedness_ratio >= 0.7:
+            chosen_algo = "quick"
+        elif sortedness_ratio >= 0.5:
+            chosen_algo = "quick" if len(arr) < 500 else "merge"
+        else:
+            chosen_algo = "heap" if len(arr) > 100 else "quick"
+        
+        current_algo = chosen_algo
+        
+        algo_func = {
+            "merge": merge_sort_generator,
+            "heap": heap_sort_generator,
+            "quick": quick_sort_generator,
+            "insertion": insertion_sort_generator
+        }[chosen_algo]
+        
+        sort_algorithm(algo_func)
+        return
     
-    algo_func = {
-        "insertion": insertion_sort_generator,
-        "merge": merge_sort_generator,
-        "quick": quick_sort_generator,
-        "heap": heap_sort_generator
-    }.get(chosen, quick_sort_generator)
+    data_points = []  # Reset previous data points
     
-    sort_algorithm(algo_func)
+    for n in arr:
+        try:
+            n_int = int(n)
+        except:
+            continue
+        
+        if float_var.get():
+            test_arr = [round(random.uniform(1, 100), 2) for _ in range(n_int)]
+        else:
+            test_arr = [random.randint(1, 100) for _ in range(n_int)]
+        
+        if len(test_arr) > 1:
+            sortedness_ratio = sum(test_arr[i] <= test_arr[i + 1] for i in range(len(test_arr) - 1)) / (len(test_arr) - 1)
+        else:
+            sortedness_ratio = 1 
+        
+        if len(test_arr) < 20:
+            chosen_algo = "insertion"
+        elif sortedness_ratio >= 0.9:
+            chosen_algo = "insertion"
+        elif sortedness_ratio >= 0.7:
+            chosen_algo = "quick"
+        elif sortedness_ratio >= 0.5:
+            chosen_algo = "quick" if len(test_arr) < 500 else "merge"
+        else:
+            chosen_algo = "heap" if len(test_arr) > 100 else "quick"
+        
+        current_algo = chosen_algo
+        
+        algo_func = {
+            "merge": merge_sort_generator,
+            "heap": heap_sort_generator,
+            "quick": quick_sort_generator,
+            "insertion": insertion_sort_generator
+        }[chosen_algo]
+        
+        start_time = time.perf_counter()
+        numbers[:] = test_arr  # Copy array
+        for _ in algo_func():
+            pass
+        end_time = time.perf_counter()
+        sort_time = end_time - start_time
+        
+        data_points.append((n_int, sort_time, algo_colors.get(chosen_algo, "black")))
+    
+    plot_graph()
+    label_analysis_result.config(text=f"Chosen Algorithm: {current_algo.capitalize()}")
 
 # ---------------- Button Command Wrappers ----------------
 
