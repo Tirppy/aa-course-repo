@@ -1,14 +1,15 @@
-import tkinter as tk
-from tkinter import ttk
-import networkx as nx  # for graph generation
-from networkx.drawing.nx_agraph import graphviz_layout
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 import math
+import random
+import heapq
 
-# -- For embedding Matplotlib in Tkinter --
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+import networkx as nx
+from networkx.drawing.nx_agraph import graphviz_layout
+
 import matplotlib
-matplotlib.use("TkAgg")  # use the TkAgg backend :contentReference[oaicite:5]{index=5}
+matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
@@ -102,14 +103,28 @@ class GraphUI:
                    command=lambda: self.on_compare(2)).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         ttk.Button(cmp_frame, text="Lab 3: Prim vs Kruskal",
                    command=lambda: self.on_compare(3)).grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+        
+        # -- Compare Settings (new) --
+        settings = ttk.Frame(left)
+        settings.pack(fill=tk.X, padx=5, pady=(0,10))
+        ttk.Label(settings, text="Min Nodes:").grid(row=0, column=0)
+        self.min_var = tk.IntVar(value=5)
+        ttk.Spinbox(settings, from_=1, to=200, textvariable=self.min_var, width=5).grid(row=0, column=1)
+        ttk.Label(settings, text="Max Nodes:").grid(row=0, column=2)
+        self.max_var = tk.IntVar(value=50)
+        ttk.Spinbox(settings, from_=1, to=200, textvariable=self.max_var, width=5).grid(row=0, column=3)
+        ttk.Label(settings, text="Step:").grid(row=0, column=4)              
+        self.step_var = tk.IntVar(value=5)                                
+        ttk.Spinbox(settings, from_=1, to=100, textvariable=self.step_var, width=5).grid(row=0, column=5)
+        ttk.Label(settings, text="Reps:").grid(row=0, column=6)
+        self.rep_var = tk.IntVar(value=10)
+        ttk.Spinbox(settings, from_=1, to=100, textvariable=self.rep_var, width=5).grid(row=0, column=7)
 
         # -- Right panel for drawing canvas --
         self.canvas_frame = right
         self.canvas = None  # will hold our FigureCanvasTkAgg
 
     def on_generate(self):
-        import math, random, networkx as nx
-        from tkinter import messagebox
 
         n        = self.node_var.get()
         gtype    = self.type_cb.get()
@@ -191,9 +206,6 @@ class GraphUI:
             self.input_box.insert(tk.END, line)
 
     def on_push(self):
-        import networkx as nx, math
-        from matplotlib.figure import Figure
-        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
         # 1. Parse adjacency + weights
         text = self.input_box.get("1.0", tk.END).strip().splitlines()
@@ -271,8 +283,6 @@ class GraphUI:
 
 
     def on_run(self, algorithm_name):
-        import networkx as nx
-        from tkinter import messagebox
 
         if algorithm_name == "Prim":
             self.run_prim_animate()
@@ -303,33 +313,28 @@ class GraphUI:
 
             try:
                 if algorithm_name == "BFS":
-                    # get BFS tree edges :contentReference[oaicite:3]{index=3}
                     all_edges = list(nx.bfs_edges(G, source=start))
-                    # truncate when we reach 'end'
+                    nodes_order = [start] 
                     for u, v in all_edges:
                         edges.append((u, v))
-                        if not nodes_order:
-                            nodes_order = [start]
                         nodes_order.append(v)
                         if v == end:
                             break
 
                 elif algorithm_name == "DFS":
-                    # get DFS tree edges :contentReference[oaicite:4]{index=4}
-                    all_edges = list(nx.dfs_edges(G, source=start))
-                    for u, v in all_edges:
+                    nodes_order = [start]
+                    for u, v in nx.dfs_edges(G, source=start):
                         edges.append((u, v))
-                        if not nodes_order:
-                            nodes_order = [start]
                         nodes_order.append(v)
                         if v == end:
                             break
 
                 elif algorithm_name == "Dijkstra":
-                    # use dijkstra_path to get a single path list :contentReference[oaicite:5]{index=5}
+                    # Compute shortest path (returns list of nodes) :contentReference[oaicite:2]{index=2}
                     path = nx.dijkstra_path(G, source=start, target=end, weight='weight')
                     nodes_order = path
-                    edges = list(zip(path, path[1:]))
+                    # zip yields an iterator; no need for list() unless you need indexing :contentReference[oaicite:3]{index=3}
+                    edges = zip(path, path[1:])
 
                 elif algorithm_name == "Floyd–Warshall":
                     # Ensure graph is drawn & stored
@@ -379,8 +384,6 @@ class GraphUI:
 
     def animate_events(self, events):
         """Animate a list of events on self.current_ax with self.current_pos layout."""
-        import networkx as nx
-        from tkinter import messagebox
 
         G      = self.current_G
         pos    = self.current_pos
@@ -464,7 +467,6 @@ class GraphUI:
         step(0)
 
     def run_dijkstra_animate(self):
-        import heapq
 
         G     = self.current_G
         start = self.start_var.get()
@@ -559,7 +561,6 @@ class GraphUI:
         self.animate_events(events)
 
     def run_prim_animate(self):
-        import heapq, networkx as nx
 
         G     = self.current_G
         start = self.start_var.get()
@@ -609,56 +610,185 @@ class GraphUI:
         self.animate_events(events)
 
     def run_kruskal_animate(self):
-        import networkx as nx
 
-        G = self.current_G
+        G     = self.current_G
         start = self.start_var.get()
         end   = self.end_var.get()
 
-        # union-find setup
-        parent = {u:u for u in G.nodes()}
+        # ── 1. Build MST via Kruskal (union–find) ──
+        parent = {u: u for u in G.nodes()}
         def find(u):
-            while parent[u]!=u:
+            while parent[u] != u:
                 parent[u] = parent[parent[u]]
                 u = parent[u]
             return u
-        def union(u,v):
+        def union(u, v):
             parent[find(v)] = find(u)
 
         # sort edges by weight
         all_edges = list(G.edges(data=True))
-        all_edges.sort(key=lambda x: x[2].get('weight',1))
+        all_edges.sort(key=lambda x: x[2].get('weight', 1))
 
         events = []
         mst_edges = []
 
-        # build MST
-        for u,v,data in all_edges:
-            events.append(("consider",u,v))
-            if find(u)!=find(v):
-                union(u,v)
-                events.append(("update",u,v))
-                mst_edges.append((u,v))
+        for u, v, data in all_edges:
+            events.append(("consider", u, v))
+            if find(u) != find(v):
+                union(u, v)
+                events.append(("update", u, v))
+                mst_edges.append((u, v))
 
-        # final-highlight of MST edges
-        for u,v in mst_edges:
-            events.append(("final",u,v))
+        # highlight MST edges at the end
+        for u, v in mst_edges:
+            events.append(("final", u, v))
 
-        # extract start→end path within MST
-        T = nx.DiGraph() if G.is_directed() else nx.Graph()
+        # ── 2. Try to extract the start→end route within the MST ──
+        # build T as an undirected graph for connectivity
+        T = nx.Graph()
         T.add_edges_from(mst_edges)
-        path = nx.shortest_path(T, source=start, target=end)
-        route = list(zip(path, path[1:]))
 
-        # store for final highlighting & prompt
-        self.final_path_edges = route
-        self.last_path_length = sum(G[u][v].get('weight',1) for u,v in route)
+        try:
+            path = nx.shortest_path(T, source=start, target=end)
+            route = list(zip(path, path[1:]))
+            # store for final highlighting & length prompt
+            self.final_path_edges = route
+            # Safely look up weight in either direction:
+            total = 0
+            for u, v in route:
+                data = G.get_edge_data(u, v)
+                if data is None:
+                    data = G.get_edge_data(v, u)
+                total += data.get('weight', 1)
+            self.last_path_length = total
+        except nx.NetworkXNoPath:
+            # no path in the MST between start and end
+            self.final_path_edges = []
+            self.last_path_length = None
+            messagebox.showwarning(
+                "No route in MST",
+                f"No path between {start} and {end} in the minimum spanning forest."
+            )
 
-        # animate
+        # ── 3. Animate all the “consider/update/final” events ──
         self.animate_events(events)
 
     def on_compare(self, lab_number):
-        print(f"Compare Lab {lab_number}")
+        import time
+        import networkx as nx
+
+        min_n = self.min_var.get()
+        max_n = self.max_var.get()
+        step  = self.step_var.get()
+        reps  = self.rep_var.get()
+        x_vals = list(range(min_n, max_n + 1, step))
+
+        # prepare plot
+        fig = Figure(figsize=(6,4), dpi=100)
+        ax  = fig.add_subplot(111)
+
+        if lab_number == 1:
+            # DFS vs BFS on random (dense) undirected graphs
+            dfs_times = []
+            bfs_times = []
+            for n in x_vals:
+                t_dfs = 0.0
+                t_bfs = 0.0
+                for _ in range(reps):
+                    # generate a connected dense graph (p=0.9)
+                    while True:
+                        G = nx.gnp_random_graph(n=n, p=0.9)
+                        if nx.is_connected(G):
+                            break
+                    # time DFS
+                    t0 = time.perf_counter()
+                    _ = list(nx.dfs_edges(G, source=0))
+                    t_dfs += time.perf_counter() - t0
+                    # time BFS
+                    t0 = time.perf_counter()
+                    _ = list(nx.bfs_edges(G, source=0))
+                    t_bfs += time.perf_counter() - t0
+                dfs_times.append(t_dfs/reps)
+                bfs_times.append(t_bfs/reps)
+            ax.plot(x_vals, dfs_times, marker='o', label='DFS')
+            ax.plot(x_vals, bfs_times, marker='o', label='BFS')
+            ax.set_title('Lab 1: DFS vs BFS')
+
+        elif lab_number == 2:
+            # Dijkstra vs Floyd–Warshall on random directed graphs
+            dij_times = []
+            fw_times  = []
+            for n in x_vals:
+                t_dij = 0.0
+                t_fw  = 0.0
+                for _ in range(reps):
+                    # generate strongly connected directed G(n,0.3)
+                    while True:
+                        G = nx.gnp_random_graph(n=n, p=0.3, directed=True)
+                        if nx.is_strongly_connected(G):
+                            break
+                    # assign random weights 1–10
+                    w = {e: random.randint(1,10) for e in G.edges()}
+                    nx.set_edge_attributes(G, w, 'weight')
+                    # Dijkstra from 0 to n-1
+                    t0 = time.perf_counter()
+                    _ = nx.dijkstra_path(G, source=0, target=n-1, weight='weight')
+                    t_dij += time.perf_counter() - t0
+                    # Floyd–Warshall all-pairs
+                    t0 = time.perf_counter()
+                    _ = nx.floyd_warshall(G, weight='weight')
+                    t_fw += time.perf_counter() - t0
+                dij_times.append(t_dij/reps)
+                fw_times.append(t_fw/reps)
+            ax.plot(x_vals, dij_times, marker='o', label='Dijkstra')
+            ax.plot(x_vals, fw_times,  marker='o', label='Floyd–Warshall')
+            ax.set_title('Lab 2: Dijkstra vs Floyd–Warshall')
+
+        elif lab_number == 3:
+            # Prim vs Kruskal on random undirected weighted graphs
+            prim_times   = []
+            kruskal_times= []
+            for n in x_vals:
+                t_prim = 0.0
+                t_krus  = 0.0
+                for _ in range(reps):
+                    # generate connected undirected G(n,0.5)
+                    while True:
+                        G = nx.gnp_random_graph(n=n, p=0.5)
+                        if nx.is_connected(G):
+                            break
+                    # random weights
+                    w = {e: random.randint(1,10) for e in G.edges()}
+                    nx.set_edge_attributes(G, w, 'weight')
+                    # time Prim
+                    t0 = time.perf_counter()
+                    _ = nx.minimum_spanning_tree(G, algorithm='prim', weight='weight')
+                    t_prim += time.perf_counter() - t0
+                    # time Kruskal
+                    t0 = time.perf_counter()
+                    _ = nx.minimum_spanning_tree(G, algorithm='kruskal', weight='weight')
+                    t_krus += time.perf_counter() - t0
+                prim_times.append(t_prim/reps)
+                kruskal_times.append(t_krus/reps)
+            ax.plot(x_vals, prim_times,    marker='o', label='Prim')
+            ax.plot(x_vals, kruskal_times, marker='o', label='Kruskal')
+            ax.set_title('Lab 3: Prim vs Kruskal')
+
+        else:
+            messagebox.showinfo("Compare", f"Lab {lab_number} not implemented.")
+            return
+
+        ax.set_xlabel('Number of nodes')
+        ax.set_ylabel('Average time (s)')
+        ax.legend()
+        ax.grid(True)
+
+        # embed in tkinter
+        if self.canvas:
+            self.canvas.get_tk_widget().destroy()
+        self.canvas = FigureCanvasTkAgg(fig, master=self.canvas_frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
 
 if __name__ == "__main__":
     root = tk.Tk()
