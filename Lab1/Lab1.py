@@ -28,6 +28,7 @@ def fibonacci_bottom_up(n):
     if n <= 1:
         return n
     a, b = 0, 1
+    
     for _ in range(2, n + 1):
         a, b = b, a + b
     return b
@@ -89,11 +90,11 @@ def measure_execution_time(func, input_series):
 
 methods = {
     "Recursive": fibonacci_recursive,
-    "Memoization": fibonacci_memoization,
-    "Bottom-Up": fibonacci_bottom_up,
-    "Matrix Exponentiation": fibonacci_matrix_exponentiation,
-    "Binet Formula": fibonacci_binet,
-    "Fast Doubling": fibonacci_fast_doubling,
+    # "Memoization": fibonacci_memoization,
+    # "Bottom-Up": fibonacci_bottom_up,
+    # "Matrix Exponentiation": fibonacci_matrix_exponentiation,
+    # "Binet Formula": fibonacci_binet,
+    # "Fast Doubling": fibonacci_fast_doubling,
 }
 
 all_results = {}

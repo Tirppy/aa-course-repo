@@ -298,8 +298,8 @@ def analyze_array():
         return
     
     if visualizer_var.get():
-        # If visualizer is enabled, run sorting with visualization
-        chosen_algo = "quick"  # Default algorithm if analysis is skipped
+        
+        chosen_algo = "quick"
         
         sortedness_ratio = sum(arr[i] <= arr[i + 1] for i in range(len(arr) - 1)) / (len(arr) - 1)
         
@@ -309,7 +309,7 @@ def analyze_array():
             chosen_algo = "insertion"
         elif sortedness_ratio >= 0.7:
             chosen_algo = "quick"
-        elif sortedness_ratio >= 0.5:
+        elif sortedness_ratio >= 0.2:
             chosen_algo = "quick" if len(arr) < 500 else "merge"
         else:
             chosen_algo = "heap" if len(arr) > 100 else "quick"
@@ -326,7 +326,7 @@ def analyze_array():
         sort_algorithm(algo_func)
         return
     
-    data_points = []  # Reset previous data points
+    data_points = []
     
     for n in arr:
         try:
@@ -350,8 +350,8 @@ def analyze_array():
             chosen_algo = "insertion"
         elif sortedness_ratio >= 0.7:
             chosen_algo = "quick"
-        elif sortedness_ratio >= 0.5:
-            chosen_algo = "quick" if len(test_arr) < 500 else "merge"
+        elif sortedness_ratio >= 0.2:
+            chosen_algo = "quick" if len(test_arr) < 7000 else "merge"
         else:
             chosen_algo = "heap" if len(test_arr) > 100 else "quick"
         
@@ -365,7 +365,7 @@ def analyze_array():
         }[chosen_algo]
         
         start_time = time.perf_counter()
-        numbers[:] = test_arr  # Copy array
+        numbers[:] = test_arr
         for _ in algo_func():
             pass
         end_time = time.perf_counter()
