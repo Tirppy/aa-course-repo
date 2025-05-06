@@ -13,12 +13,13 @@ matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-import time
+import ast
 
 class GraphUI:
     def __init__(self, root):
         root.title("Graph Algorithms Visualizer")
 
+        # PanedWindow setup
         paned = tk.PanedWindow(root, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=1, padx=5, pady=5)
 
@@ -27,13 +28,29 @@ class GraphUI:
         paned.add(left); paned.add(right)
         paned.paneconfigure(left, pady=10); paned.paneconfigure(right, pady=10)
 
+        # Control row: graph type + node count + start/end on one line
         ctrl_frame = ttk.Frame(left)
         ctrl_frame.pack(fill=tk.X, padx=5, pady=(0,10))
 
         ttk.Label(ctrl_frame, text="Graph type:").grid(row=0, column=0, sticky="w")
-        self.type_cb = ttk.Combobox(ctrl_frame,
-                                    values=["Tree","Sparse","Dense","Complete","Grid"],
-                                    state="readonly", width=10)
+        # ─── NEW SEGMENT ───
+        self.type_cb = ttk.Combobox(
+                ctrl_frame,
+                values=[
+                    "Tree",          # existing
+                    "Path",          # NEW  – long‑diameter line graph
+                    "Cycle",         # NEW  – single simple cycle
+                    "Sparse",        # existing
+                    "Dense",         # existing
+                    "Complete",      # existing
+                    "Grid",          # existing
+                    "Disconnected"
+                ],
+                state="readonly",
+                width=12
+        )
+        # ───────────────────
+
         self.type_cb.current(0)
         self.type_cb.grid(row=0, column=1, sticky="w", padx=(5,20))
 
@@ -44,16 +61,18 @@ class GraphUI:
                                 width=5, justify="center")
         self.node_sb.grid(row=0, column=3, sticky="w", padx=5)
 
+        # Start and End node entries
         ttk.Label(ctrl_frame, text="Start:").grid(row=1, column=0, sticky="w", pady=(5,0))
         self.start_var = tk.IntVar(value=0)
         ttk.Entry(ctrl_frame, textvariable=self.start_var, width=5).grid(
-            row=1, column=1, sticky="w", pady=(5,0))
+            row=1, column=1, sticky="w", pady=(5,0))  # Entry widget :contentReference[oaicite:3]{index=3}
 
         ttk.Label(ctrl_frame, text="End:").grid(row=1, column=2, sticky="w", pady=(5,0))
         self.end_var = tk.IntVar(value=0)
         ttk.Entry(ctrl_frame, textvariable=self.end_var, width=5).grid(
-            row=1, column=3, sticky="w", pady=(5,0))
+            row=1, column=3, sticky="w", pady=(5,0))  # grid placement :contentReference[oaicite:4]{index=4}
 
+        # Weighted edges checkbox
         self.weight_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(ctrl_frame, text="Weighted Edges",
                         variable=self.weight_var).grid(
@@ -64,11 +83,13 @@ class GraphUI:
             ctrl_frame,
             text="Directed",
             variable=self.directed_var
-        ).grid(row=2, column=4, sticky="w", padx=(10,0))
+        ).grid(row=2, column=4, sticky="w", padx=(10,0))  # new column for “Directed”
 
+        # Adjacency list input box
         self.input_box = tk.Text(left, height=8)
         self.input_box.pack(fill=tk.X, padx=5, pady=5)
 
+        # Generate / Push buttons
         btn_frame = ttk.Frame(left)
         btn_frame.pack(pady=5)
         for c in range(2): btn_frame.columnconfigure(c, weight=1)
@@ -77,6 +98,7 @@ class GraphUI:
         ttk.Button(btn_frame, text="Push", command=self.on_push)\
             .grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
+        # -- Algorithm buttons (unchanged) --
         algs = ["DFS","BFS","Dijkstra","Floyd–Warshall","Prim","Kruskal"]
         alg_frame = ttk.LabelFrame(left, text="Run Algorithm")
         alg_frame.pack(fill=tk.X, padx=5, pady=10)
@@ -87,17 +109,19 @@ class GraphUI:
             r, c = divmod(idx, 3)
             b.grid(row=r, column=c, padx=5, pady=5, sticky="ew")
 
+        # -- Compare Labs (unchanged) --
         cmp_frame = ttk.LabelFrame(left, text="Compare Labs")
         cmp_frame.pack(fill=tk.X, padx=5, pady=10)
         for c in range(3):
             cmp_frame.columnconfigure(c, weight=1)
-        ttk.Button(cmp_frame, text="Lab 3: DFS vs BFS",
+        ttk.Button(cmp_frame, text="Lab 1: DFS vs BFS",
                    command=lambda: self.on_compare(1)).grid(row=0, column=0, padx=5, pady=5, sticky="ew")
-        ttk.Button(cmp_frame, text="Lab 4: Dijkstra vs Floyd–Warshall",
+        ttk.Button(cmp_frame, text="Lab 2: Dijkstra vs Floyd–Warshall",
                    command=lambda: self.on_compare(2)).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        ttk.Button(cmp_frame, text="Lab 5: Prim vs Kruskal",
+        ttk.Button(cmp_frame, text="Lab 3: Prim vs Kruskal",
                    command=lambda: self.on_compare(3)).grid(row=0, column=2, padx=5, pady=5, sticky="ew")
         
+        # -- Compare Settings (new) --
         settings = ttk.Frame(left)
         settings.pack(fill=tk.X, padx=5, pady=(0,10))
         ttk.Label(settings, text="Min Nodes:").grid(row=0, column=0)
@@ -113,8 +137,9 @@ class GraphUI:
         self.rep_var = tk.IntVar(value=10)
         ttk.Spinbox(settings, from_=1, to=100, textvariable=self.rep_var, width=5).grid(row=0, column=7)
 
+        # -- Right panel for drawing canvas --
         self.canvas_frame = right
-        self.canvas = None
+        self.canvas = None  # will hold our FigureCanvasTkAgg
 
     def on_generate(self):
 
@@ -123,7 +148,10 @@ class GraphUI:
         weighted = self.weight_var.get()
         directed = self.directed_var.get()
 
+        # ─── NEW SEGMENT ───
+        # 1. Generate raw graph
         if gtype == "Sparse":
+            # low‑density Erdős–Rényi (kept unchanged)
             p = 0.1
             if directed:
                 while True:
@@ -137,6 +165,7 @@ class GraphUI:
                         break
 
         elif gtype == "Dense":
+            # high‑density Erdős–Rényi (kept unchanged)
             p = 0.9
             if directed:
                 while True:
@@ -162,10 +191,29 @@ class GraphUI:
             G = nx.relabel_nodes(H, mapping)
             G.remove_nodes_from([u for u in G if u >= n])
 
-        else:
+        elif gtype == "Path":
+            G = nx.path_graph(n)
+            if directed:
+                G = G.to_directed()            # bidirectional so it stays strongly connected
+
+        elif gtype == "Cycle":
+            G = nx.cycle_graph(n)
+            if directed:
+                G = G.to_directed()
+
+        elif gtype == "Disconnected":
+            # two path components, no edges between them
+            n1 = n // 2
+            n2 = n - n1
+            G1 = nx.path_graph(n1)
+            G2 = nx.path_graph(n2)
+            G2 = nx.relabel_nodes(G2, lambda x: x + n1)
+            G  = nx.disjoint_union(G1, G2)
+            if directed:
+                G = G.to_directed()
+
+        elif gtype == "Tree":
             T = nx.random_labeled_tree(n)
-            if not nx.is_tree(T):
-                messagebox.showwarning("Generation error", "Tree test failed")
             if directed:
                 G = nx.DiGraph()
                 G.add_nodes_from(T.nodes())
@@ -175,12 +223,21 @@ class GraphUI:
             else:
                 G = T
 
-        G = nx.convert_node_labels_to_integers(G, ordering="sorted")
+        else:
+            messagebox.showwarning("Graph type", f"Unknown graph type '{gtype}'")
+            return
+        # ───────────────────
 
+
+        # 2. Relabel nodes 0…n−1
+        G = nx.convert_node_labels_to_integers(G, ordering="sorted")  # :contentReference[oaicite:9]{index=9}
+
+        # 3. Optionally assign random weights
         if weighted:
             w = {(u, v): random.randint(1, 10) for u, v in G.edges()}
-            nx.set_edge_attributes(G, w, "weight")
+            nx.set_edge_attributes(G, w, "weight")  # :contentReference[oaicite:10]{index=10}
 
+        # 4. Show adjacency (with weights if any)
         self.input_box.delete("1.0", tk.END)
         for u in sorted(G.nodes()):
             nbrs = G.adj[u]
@@ -192,6 +249,7 @@ class GraphUI:
 
     def on_push(self):
 
+        # 1. Parse adjacency + weights
         text = self.input_box.get("1.0", tk.END).strip().splitlines()
         adj, weights = {}, {}
         for line in text:
@@ -199,21 +257,28 @@ class GraphUI:
                 continue
             u_str, rest = line.split(":", 1)
             u = int(u_str.strip())
-            if "(" in rest:
-                pairs = eval(rest, {}, {})
-                adj[u] = [v for v, w in pairs]
-                for v, w in pairs:
-                    weights[(u, v)] = w
-            else:
-                adj[u] = eval(rest, {}, {})
+            rest = rest.strip()
+            try:
+                if "(" in rest:
+                    pairs = ast.literal_eval(rest)
+                    adj[u] = [v for v, w in pairs]
+                    for v, w in pairs:
+                        weights[(u, v)] = w
+                else:
+                    adj[u] = ast.literal_eval(rest)
+            except (ValueError, SyntaxError):
+                messagebox.showerror("Parse Error", f"Could not parse line:\n{line}")
+                return
 
+        # 2. Build directed or undirected graph
         if self.directed_var.get():
-            G = nx.DiGraph(adj)
+            G = nx.DiGraph(adj)               # directed :contentReference[oaicite:13]{index=13}
         else:
             G = nx.Graph(adj)
         if weights:
-            nx.set_edge_attributes(G, weights, "weight")
+            nx.set_edge_attributes(G, weights, "weight")  # :contentReference[oaicite:14]{index=14}
 
+        # 3. Compute layout
         gtype = self.type_cb.get()
         if gtype == "Tree":
             def hierarchy_pos(G, root=0, width=1., vert_gap=0.2, vert_loc=0.):
@@ -233,15 +298,17 @@ class GraphUI:
             r = int(math.sqrt(n)) or 1; c = math.ceil(n/r)
             pos = {u: (u % c, u // c) for u in G.nodes()}
         elif gtype == "Complete":
-            pos = nx.circular_layout(G)
+            pos = nx.circular_layout(G)       # :contentReference[oaicite:15]{index=15}
         else:
             pos = nx.spring_layout(G)
 
+        # 4. Draw graph with updated weights
         fig = Figure(figsize=(4,4), dpi=100)
         ax  = fig.add_subplot(111)
         nx.draw_networkx(G, pos=pos, ax=ax, with_labels=True)
         edge_labels = nx.get_edge_attributes(G, "weight")
         if edge_labels:
+            # move labels toward source end (0.1 of the edge length)
             nx.draw_networkx_edge_labels(
                 G,
                 pos,
@@ -256,8 +323,9 @@ class GraphUI:
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
 
+        # 5. Store for on_run
         self.current_G   = G
-        self.current_pos = pos
+        self.current_pos = pos             # now correctly stored
         self.current_ax  = ax
 
 
@@ -275,6 +343,7 @@ class GraphUI:
             self.run_floyd_animate()
         else:
 
+            # 1. Ensure graph & layout exist
             if not hasattr(self, 'current_G') or not hasattr(self, 'current_pos'):
                 self.on_push()
             G   = self.current_G
@@ -285,18 +354,26 @@ class GraphUI:
             start = self.start_var.get()
             end   = self.end_var.get()
 
+            # Prepare the sequence of tree-edges and node-order
             edges = []
             nodes_order = []
 
             try:
                 if algorithm_name == "BFS":
-                    all_edges = list(nx.bfs_edges(G, source=start))
-                    nodes_order = [start] 
+                    all_edges   = list(nx.bfs_edges(G, source=start))
+                    nodes_order = [start]
                     for u, v in all_edges:
                         edges.append((u, v))
                         nodes_order.append(v)
                         if v == end:
                             break
+
+                    # ── NEW ── warn that BFS treats all edges equally
+                    if any('weight' in d for _, _, d in G.edges(data=True)):
+                        messagebox.showinfo(
+                            "Note",
+                            "BFS ignores edge weights and treats every edge cost as 1."
+                        )
 
                 elif algorithm_name == "DFS":
                     nodes_order = [start]
@@ -307,11 +384,14 @@ class GraphUI:
                             break
 
                 elif algorithm_name == "Dijkstra":
+                    # Compute shortest path (returns list of nodes) :contentReference[oaicite:2]{index=2}
                     path = nx.dijkstra_path(G, source=start, target=end, weight='weight')
                     nodes_order = path
+                    # zip yields an iterator; no need for list() unless you need indexing :contentReference[oaicite:3]{index=3}
                     edges = zip(path, path[1:])
 
                 elif algorithm_name == "Floyd–Warshall":
+                    # Ensure graph is drawn & stored
                     if not hasattr(self, 'current_G') or not hasattr(self, 'current_pos'):
                         self.on_push()
                     self.run_floyd_animate()
@@ -327,31 +407,58 @@ class GraphUI:
                 messagebox.showwarning("Node Error", str(e))
                 return
 
+            # 2. Draw base graph in gray
             ax.clear()
-            nx.draw_networkx_nodes(G, pos, ax=ax, node_color='lightgray')
-            nx.draw_networkx_edges(G, pos, ax=ax, edge_color='gray')
-            nx.draw_networkx_labels(G, pos, ax=ax)
+            nx.draw_networkx_nodes(G, pos, ax=ax, node_color='lightgray')  # base nodes
+            nx.draw_networkx_edges(G, pos, ax=ax, edge_color='gray')       # base edges
+            nx.draw_networkx_labels(G, pos, ax=ax)                         # labels
+            # redraw weights if present
             edge_labels = nx.get_edge_attributes(G, 'weight')
             if edge_labels:
-                nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, ax=ax)
+                nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, ax=ax)  # show weights
             ax.set_axis_off()
             self.canvas.draw()
 
+            # 3. Animate: highlight each node in red and its tree-edge in blue
             def step(i):
                 if i >= len(nodes_order):
                     return
-                u = nodes_order[i]
-                nx.draw_networkx_nodes(G, pos, nodelist=[u], node_color='red', ax=ax)
+
+                ax.clear()
+                # ── base graph in grey ────────────────────────────────
+                nx.draw_networkx_nodes(G, pos, ax=ax, node_color="lightgray")
+                nx.draw_networkx_edges(G, pos, ax=ax, edge_color="gray")
+                nx.draw_networkx_labels(G, pos, ax=ax)
+                edge_labels = nx.get_edge_attributes(G, "weight")
+                if edge_labels:
+                    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, ax=ax)
+
+                # ── highlight discoveries up to frame i ───────────────
+                nx.draw_networkx_nodes(G, pos,
+                                    nodelist=nodes_order[: i + 1],
+                                    node_color="red",
+                                    ax=ax)
                 if i > 0:
-                    e = edges[i-1]
-                    nx.draw_networkx_edges(G, pos, edgelist=[e],
-                                        edge_color='blue', width=2, ax=ax)
+                    nx.draw_networkx_edges(G, pos,
+                                        edgelist=edges[: i],
+                                        edge_color="blue",
+                                        width=2,
+                                        ax=ax)
+
                 self.canvas.draw()
-                widget.after(500, lambda: step(i+1))
+                widget.after(500, lambda: step(i + 1))
+
 
             step(0)
+            widget.after(500 * len(nodes_order),   # total animation time
+             lambda: messagebox.showinfo(
+                 f"{algorithm_name} complete",
+                 f"Visited {len(nodes_order)} nodes "
+                 f"using {len(edges)} tree edges."
+             ))
 
     def animate_events(self, events):
+        """Animate a list of events on self.current_ax with self.current_pos layout."""
 
         G      = self.current_G
         pos    = self.current_pos
@@ -361,11 +468,14 @@ class GraphUI:
 
         def step(i):
             ax.clear()
+            # — draw base graph —
             nx.draw_networkx_nodes(G, pos, ax=ax, node_color='lightgray')
             nx.draw_networkx_edges(G, pos, ax=ax, edge_color='gray')
             nx.draw_networkx_labels(G, pos, ax=ax)
+            # highlight start/end
             nx.draw_networkx_nodes(G, pos, nodelist=[start], node_color='green', ax=ax)
             nx.draw_networkx_nodes(G, pos, nodelist=[end],   node_color='red',   ax=ax)
+            # redraw weights at start of edges
             edge_labels = nx.get_edge_attributes(G, 'weight')
             if edge_labels:
                 nx.draw_networkx_edge_labels(
@@ -411,7 +521,9 @@ class GraphUI:
                 self.canvas.draw()
                 widget.after(300, lambda: step(i+1))
             else:
+                # once all events done, draw entire final path
                 if hasattr(self, 'final_path_edges'):
+                    # highlight the whole route
                     nx.draw_networkx_edges(
                         G,
                         pos,
@@ -420,11 +532,25 @@ class GraphUI:
                         width=4,
                         ax=ax
                     )
+                    # ── NEW: also colour the vertices on that route ──
+                    path_nodes = {u for edge in self.final_path_edges for u in edge}
+                    nx.draw_networkx_nodes(
+                        G,
+                        pos,
+                        nodelist=path_nodes,
+                        node_color='green',
+                        ax=ax
+                    )
                     self.canvas.draw()
-                messagebox.showinfo(
-                    "Result",
-                    f"Shortest-path length from {start} to {end} is {self.last_path_length}"
-                )
+
+                # then show the length prompt only once
+                if start != end and self.last_path_length is not None:   # ── NEW guard ──
+                    messagebox.showinfo(
+                        "Result",
+                        f"Shortest-path length from {start} to {end} is "
+                        f"{self.last_path_length}"
+                    )
+                # do not clear—leave final path highlighted
 
         step(0)
 
@@ -492,11 +618,11 @@ class GraphUI:
         for k in nodes:
             for i in nodes:
                 for j in nodes:
-                    events.append(("consider_fw", i, k, j))
                     if dist[i][j] > dist[i][k] + dist[k][j]:
                         dist[i][j] = dist[i][k] + dist[k][j]
                         next_hop[i][j] = next_hop[i][k]
-                        events.append(("update_fw", i, j, k))
+                        events.append(("update_fw", i, j, k))   # show only real improvements
+
 
         path_edges = []
         u = start
@@ -512,7 +638,13 @@ class GraphUI:
 
     def run_prim_animate(self):
 
-        G     = self.current_G
+        G = self.current_G
+        if G.is_directed():               # ── NEW guard ──
+            messagebox.showwarning(
+                "Prim",
+                "Prim requires an *undirected* graph.\nDisable “Directed” and try again."
+            )
+            return
         start = self.start_var.get()
         end   = self.end_var.get()
 
@@ -548,14 +680,26 @@ class GraphUI:
         path = nx.shortest_path(T, source=start, target=end)
         route = list(zip(path, path[1:]))
 
-        self.final_path_edges = route
-        self.last_path_length = sum(G[u][v].get('weight',1) for u,v in route)
+        if start == end:                    # ── NEW ── use the full MST
+            self.final_path_edges = mst_edges
+            self.last_path_length = None    # distance not shown
+        else:
+            self.final_path_edges = route
+            self.last_path_length = sum(
+                G[u][v].get('weight', 1) for u, v in route
+            )
 
         self.animate_events(events)
 
     def run_kruskal_animate(self):
 
-        G     = self.current_G
+        G = self.current_G
+        if G.is_directed():               # ── NEW guard ──
+            messagebox.showwarning(
+                "Kruskal",
+                "Kruskal requires an *undirected* graph.\nDisable “Directed” and try again."
+            )
+            return
         start = self.start_var.get()
         end   = self.end_var.get()
 
@@ -590,14 +734,17 @@ class GraphUI:
         try:
             path = nx.shortest_path(T, source=start, target=end)
             route = list(zip(path, path[1:]))
-            self.final_path_edges = route
-            total = 0
-            for u, v in route:
-                data = G.get_edge_data(u, v)
-                if data is None:
-                    data = G.get_edge_data(v, u)
-                total += data.get('weight', 1)
-            self.last_path_length = total
+
+            if start == end:                    # ── NEW ── highlight whole MST
+                self.final_path_edges = mst_edges
+                self.last_path_length = None
+            else:
+                self.final_path_edges = route
+                total = 0
+                for u, v in route:
+                    data = G.get_edge_data(u, v) or G.get_edge_data(v, u)
+                    total += data.get('weight', 1)
+                self.last_path_length = total
         except nx.NetworkXNoPath:
             self.final_path_edges = []
             self.last_path_length = None
@@ -609,6 +756,8 @@ class GraphUI:
         self.animate_events(events)
 
     def on_compare(self, lab_number):
+        import time
+        import networkx as nx
 
         min_n = self.min_var.get()
         max_n = self.max_var.get()
@@ -616,23 +765,28 @@ class GraphUI:
         reps  = self.rep_var.get()
         x_vals = list(range(min_n, max_n + 1, step))
 
+        # prepare plot
         fig = Figure(figsize=(6,4), dpi=100)
         ax  = fig.add_subplot(111)
 
         if lab_number == 1:
+            # DFS vs BFS on random (dense) undirected graphs
             dfs_times = []
             bfs_times = []
             for n in x_vals:
                 t_dfs = 0.0
                 t_bfs = 0.0
                 for _ in range(reps):
+                    # generate a connected dense graph (p=0.9)
                     while True:
                         G = nx.gnp_random_graph(n=n, p=0.9)
                         if nx.is_connected(G):
                             break
+                    # time DFS
                     t0 = time.perf_counter()
                     _ = list(nx.dfs_edges(G, source=0))
                     t_dfs += time.perf_counter() - t0
+                    # time BFS
                     t0 = time.perf_counter()
                     _ = list(nx.bfs_edges(G, source=0))
                     t_bfs += time.perf_counter() - t0
@@ -640,24 +794,29 @@ class GraphUI:
                 bfs_times.append(t_bfs/reps)
             ax.plot(x_vals, dfs_times, marker='o', label='DFS')
             ax.plot(x_vals, bfs_times, marker='o', label='BFS')
-            ax.set_title('Lab 3: DFS vs BFS')
+            ax.set_title('Lab 1: DFS vs BFS')
 
         elif lab_number == 2:
+            # Dijkstra vs Floyd–Warshall on random directed graphs
             dij_times = []
             fw_times  = []
             for n in x_vals:
                 t_dij = 0.0
                 t_fw  = 0.0
                 for _ in range(reps):
+                    # generate strongly connected directed G(n,0.3)
                     while True:
                         G = nx.gnp_random_graph(n=n, p=0.3, directed=True)
                         if nx.is_strongly_connected(G):
                             break
+                    # assign random weights 1–10
                     w = {e: random.randint(1,10) for e in G.edges()}
                     nx.set_edge_attributes(G, w, 'weight')
+                    # Dijkstra from 0 to n-1
                     t0 = time.perf_counter()
                     _ = nx.dijkstra_path(G, source=0, target=n-1, weight='weight')
                     t_dij += time.perf_counter() - t0
+                    # Floyd–Warshall all-pairs
                     t0 = time.perf_counter()
                     _ = nx.floyd_warshall(G, weight='weight')
                     t_fw += time.perf_counter() - t0
@@ -665,24 +824,29 @@ class GraphUI:
                 fw_times.append(t_fw/reps)
             ax.plot(x_vals, dij_times, marker='o', label='Dijkstra')
             ax.plot(x_vals, fw_times,  marker='o', label='Floyd–Warshall')
-            ax.set_title('Lab 4: Dijkstra vs Floyd–Warshall')
+            ax.set_title('Lab 2: Dijkstra vs Floyd–Warshall')
 
         elif lab_number == 3:
+            # Prim vs Kruskal on random undirected weighted graphs
             prim_times   = []
             kruskal_times= []
             for n in x_vals:
                 t_prim = 0.0
                 t_krus  = 0.0
                 for _ in range(reps):
+                    # generate connected undirected G(n,0.5)
                     while True:
                         G = nx.gnp_random_graph(n=n, p=0.5)
                         if nx.is_connected(G):
                             break
+                    # random weights
                     w = {e: random.randint(1,10) for e in G.edges()}
                     nx.set_edge_attributes(G, w, 'weight')
+                    # time Prim
                     t0 = time.perf_counter()
                     _ = nx.minimum_spanning_tree(G, algorithm='prim', weight='weight')
                     t_prim += time.perf_counter() - t0
+                    # time Kruskal
                     t0 = time.perf_counter()
                     _ = nx.minimum_spanning_tree(G, algorithm='kruskal', weight='weight')
                     t_krus += time.perf_counter() - t0
@@ -690,7 +854,7 @@ class GraphUI:
                 kruskal_times.append(t_krus/reps)
             ax.plot(x_vals, prim_times,    marker='o', label='Prim')
             ax.plot(x_vals, kruskal_times, marker='o', label='Kruskal')
-            ax.set_title('Lab 5: Prim vs Kruskal')
+            ax.set_title('Lab 3: Prim vs Kruskal')
 
         else:
             messagebox.showinfo("Compare", f"Lab {lab_number} not implemented.")
@@ -701,6 +865,7 @@ class GraphUI:
         ax.legend()
         ax.grid(True)
 
+        # embed in tkinter
         if self.canvas:
             self.canvas.get_tk_widget().destroy()
         self.canvas = FigureCanvasTkAgg(fig, master=self.canvas_frame)
